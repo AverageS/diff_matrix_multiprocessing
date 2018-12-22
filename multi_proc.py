@@ -4,13 +4,8 @@ import itertools as its
 import queue
 import copy
 
-from typing import NamedTuple
-
 BLOCK_SIZE = 8
 WORKERS_COUNT = 4
-
-class Task(NamedTuple):
-    rows: np.array
 
 
 def chunked(iterable, block_size):
@@ -58,16 +53,15 @@ def worker(inq: mp.Queue, outq: mp.Queue, s):
         else:
             output_rows = np.empty(shape=(0, s_len), dtype=np.int64)
 
-            for row_num in task.rows:
+            for row_num in task:
                 row = np.zeros(shape=s_len, dtype=np.int64)
-
                 for i in range(0, s_len):
                     j = row_num ^ i
                     image = s[i] ^ s[j]
                     row[image] += 1
                 output_rows = np.vstack([output_rows, row])
 
-            outq.put(zip(task.rows, output_rows))
+            outq.put(zip(task, output_rows))
 
     return True
 
@@ -80,9 +74,7 @@ if __name__ == '__main__':
     tasks = [np.array(chunk) for chunk in chunked(range(s_len), BLOCK_SIZE)]
 
     for task in tasks:
-        ready_for_evaluate.put(Task(
-            rows=task,
-        ))
+        ready_for_evaluate.put(task)
 
     pool = [mp.Process(target=worker, args=(ready_for_evaluate, ready_for_reduce, copy.deepcopy(S))) for _ in range(WORKERS_COUNT)]
     for process in pool:
