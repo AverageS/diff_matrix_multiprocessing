@@ -32,11 +32,12 @@ def chunked(iterable, block_size):
 
 
 def one_proc(S):
-    res = np.empty(shape=(0, len(S)), dtype=np.int64)
+    s_len = len(S)
+    res = np.empty(shape=(0, s_len), dtype=np.int64)
 
-    for value in range(len(S)):
-        row = np.zeros(shape=len(S), dtype=np.int64)
-        for i in range(len(S)):
+    for value in range(s_len):
+        row = np.zeros(shape=s_len, dtype=np.int64)
+        for i in range(s_len):
             j = value ^ i
             image = S[i] ^ S[j]
             row[image] += 1
