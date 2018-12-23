@@ -1,16 +1,10 @@
 import multiprocessing as mp
 import numpy as np
 import itertools as its
-import queue
 import copy
 
 BLOCK_SIZE = 8
 WORKERS_COUNT = 4
-
-
-def chunked(iterable, block_size):
-    it = iter(iterable)
-    return iter(lambda: tuple(its.islice(it, block_size)), ())
 
 
 S = [
@@ -29,6 +23,11 @@ S = [
 # S = [3, 0, 6, 2, 7, 4, 5, 1]
 
 
+def chunked(iterable, block_size):
+    it = iter(iterable)
+    return iter(lambda: tuple(its.islice(it, block_size)), ())
+
+
 def one_proc():
     res = np.empty(shape=(0, len(S)), dtype=np.int64)
 
@@ -43,40 +42,31 @@ def one_proc():
     return res
 
 
-def worker(inq: mp.Queue, outq: mp.Queue, s):
+def worker(outq: mp.Queue, s: list, worker_index: int, workers_count: int, block_size: int):
     s_len = len(s)
-    while True:
-        try:
-            task = inq.get_nowait()
-        except queue.Empty:
-            break
-        else:
-            output_rows = np.empty(shape=(0, s_len), dtype=np.int64)
 
-            for row_num in task:
-                row = np.zeros(shape=s_len, dtype=np.int64)
-                for i in range(0, s_len):
-                    j = row_num ^ i
-                    image = s[i] ^ s[j]
-                    row[image] += 1
-                output_rows = np.vstack([output_rows, row])
+    for task in chunked(range(worker_index, s_len, workers_count), block_size):
+        output_rows = np.empty(shape=(0, s_len), dtype=np.int64)
 
-            outq.put(zip(task, output_rows))
+        for row_num in task:
+            row = np.zeros(shape=s_len, dtype=np.int64)
+            for i in range(0, s_len):
+                j = row_num ^ i
+                image = s[i] ^ s[j]
+                row[image] += 1
+            output_rows = np.vstack([output_rows, row])
+
+        outq.put(zip(task, output_rows))
 
     return True
 
 
 if __name__ == '__main__':
-    ready_for_evaluate = mp.Queue()
     ready_for_reduce = mp.Queue()
     s_len = len(S)
     P_multi = np.empty(shape=(s_len, s_len), dtype=np.int64)
-    tasks = [np.array(chunk) for chunk in chunked(range(s_len), BLOCK_SIZE)]
 
-    for task in tasks:
-        ready_for_evaluate.put(task)
-
-    pool = [mp.Process(target=worker, args=(ready_for_evaluate, ready_for_reduce, copy.deepcopy(S))) for _ in range(WORKERS_COUNT)]
+    pool = [mp.Process(target=worker, args=(ready_for_reduce, copy.deepcopy(S), i, WORKERS_COUNT, BLOCK_SIZE)) for i in range(WORKERS_COUNT)]
     for process in pool:
         process.start()
 
