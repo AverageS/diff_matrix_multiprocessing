@@ -7,7 +7,7 @@ import random
 
 BLOCK_SIZE = 8
 WORKERS_COUNT = 4
-SUBSTITUTION_LENGTH = 1024
+SUBSTITUTION_LENGTH = 2**10
 
 
 # S = [
@@ -33,15 +33,13 @@ def chunked(iterable, block_size):
 
 def one_proc(S):
     s_len = len(S)
-    res = np.empty(shape=(0, s_len), dtype=np.int64)
+    res = np.empty(shape=(s_len, s_len), dtype=np.int64)
 
     for value in range(s_len):
-        row = np.zeros(shape=s_len, dtype=np.int64)
         for i in range(s_len):
             j = value ^ i
             image = S[i] ^ S[j]
-            row[image] += 1
-        res = np.vstack([res, row])
+            res[value][image] += 1
 
     return res
 
